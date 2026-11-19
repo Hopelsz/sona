@@ -149,9 +149,7 @@ function penguBuild(): Plugin {
         copyDirSync(outDir, projectRoot)
         console.log(`\n  ✅ Plugin "${PLUGIN_NAME}" built in-place (project root)\n`)
       } else {
-        if (fs.existsSync(PLUGINS_DIR)) {
-          fs.rmSync(PLUGINS_DIR, { recursive: true })
-        }
+        // 只替换构建产物，保留插件目录里用户自己的 assets（壁纸 / 头像等资源）
         fs.mkdirSync(PLUGINS_DIR, { recursive: true })
         copyDirSync(outDir, PLUGINS_DIR)
         console.log(`\n  ✅ Plugin "${PLUGIN_NAME}" built to ${PLUGINS_DIR}\n`)

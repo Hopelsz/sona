@@ -12,12 +12,10 @@ import { injector } from '@/lib/InjectorManager'
 import { lcu } from '@/lib/lcu'
 import { initPluginResolver } from '@/lib/plugin-resolver'
 import { installEmberHook } from '@/lib/ember-hook'
-import { registerChromaRules } from '@/lib/features/chroma-unlock'
 import { checkForUpdates } from '@/lib/update-checker'
 import { installAdBlockXhrRules } from '@/lib/xhr'
 import '@/styles/index.css'
 import '@/styles/inject.css'
-import '@/styles/availabilityMenu.css'
 import '@/styles/gameModeFilter.css'
 
 const PLUGIN_NAME = 'Sona'
@@ -82,7 +80,6 @@ export function init(context: PenguContext) {
 
   // 必须在 init 阶段注册 RCP hook——要赶在客户端调用 getEmber 之前
   installEmberHook(context)
-  registerChromaRules()
 
   logger.printBanner()
 }

@@ -68,28 +68,6 @@ export interface OpggItemBuild {
   first_place?: number
 }
 
-export interface OpggRuneBuild {
-  id: number
-  primary_page_id: number
-  primary_rune_ids: number[]
-  secondary_page_id: number
-  secondary_rune_ids: number[]
-  stat_mod_ids: number[]
-  play: number
-  win: number
-  pick_rate: number
-}
-
-export interface OpggRunePage {
-  id: number
-  primary_page_id: number
-  secondary_page_id: number
-  play: number
-  win: number
-  pick_rate: number
-  builds: OpggRuneBuild[]
-}
-
 export interface OpggSkillBuild {
   order: string[]
   play: number
@@ -145,8 +123,6 @@ export interface OpggNormalChampionData {
   boots: OpggItemBuild[]
   starter_items: OpggItemBuild[]
   last_items: OpggItemBuild[]
-  rune_pages: OpggRunePage[]
-  runes: OpggRuneBuild[]
   skill_masteries: OpggSkillMastery[]
   skills: OpggSkillBuild[]
   skill_evolves: unknown[]

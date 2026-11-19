@@ -95,31 +95,8 @@ function tryInjectSonaButton(): boolean {
 }
 
 
-// ==================== 接管在线状态切换按钮 ====================
-
-
-
-
-const MENU_ID = 'sona-availability-menu'
-
-const AVAILABILITY_OPTIONS: { value: Availability; label: string }[] = [
-  { value: 'chat', label: '在线' },
-  { value: 'away', label: '离开' },
-  //{ value: 'dnd', label: '勿扰' }, 勿扰跟离开看起来是一样的，留一个就行了
-  { value: 'offline', label: '隐身' },
-  { value: 'mobile', label: '手机在线' },
-]
-
 /** 当前状态缓存（从 store 初始化） */
 let currentAvailability: Availability = store.get('availability') as Availability
-  /**
- * 玩家是否「真正手点」过隐身(offline)。仅记录隐身这一种：
- * 手选隐身后，进游戏被客户端自动改成"游戏中"等状态时强制拉回隐身；
- * 手点其他任意模式（在线/离开/手机在线）即置 null，不强制。
- * 从 store 初始化（仅当上次保存为隐身），使重启后仍保持隐身意图。
- */
-let userSelectedAvailability: Availability | null =
-  (store.get('availability') as Availability) === 'offline' ? 'offline' : null
 let statusPersistencePausedForVerify = false
 
 /** 获取当前账号保存的签名 */
@@ -296,7 +273,7 @@ function hasContent(v: unknown): v is string {
  * 订阅 /lol-chat/v1/me 的实时变化，把客户端 availability/statusMessage 同步到 store。
  *
  * 解决的场景：
- *   玩家在**客户端原生签名输入框**里修改签名（由 unlockStatus 解锁）→ 客户端 PUT /lol-chat/v1/me
+ *   玩家在客户端原生签名输入框里修改签名 → 客户端 PUT /lol-chat/v1/me
  *   → 我们之前只在启动时拉一次快照，玩家改完签名后若没重启 Sona，store 永远不会更新。
  *
  * 同步策略：
@@ -311,16 +288,6 @@ function subscribeChatMeSync() {
   chatMeUnsub = lcu.observe(LcuEventUri.CHAT_ME, async (event: LCUEventMessage) => {
     const me = event.data as ChatMe | null
     if (!me) return
-
-    // 强判断（不受阶段限制）：玩家手选隐身后，进游戏等场景客户端会自动把状态改成
-    // "游戏中"(dnd/chat 等)，这里检测到偏离立即强制拉回隐身，直到玩家手点其他在线模式。
-    if (userSelectedAvailability === 'offline' && me.availability && me.availability !== 'offline') {
-      logger.info('[Availability] 隐身被客户端改为 %s，强制恢复隐身', me.availability)
-      lcu.setAvailability('offline')
-        .then(() => { currentAvailability = 'offline' })
-        .catch((err) => logger.warn('[Availability] 强制隐身失败:', err))
-      return
-    }
 
     // 仅空闲阶段同步，避免把"选人中XX"之类的自动签名误存进去
     try {
@@ -366,140 +333,6 @@ function unsubscribeChatMeSync() {
     chatMeUnsub = null
     logger.info('[Availability] 已取消订阅 /lol-chat/v1/me')
   }
-}
-
-/** 关闭已有的菜单 */
-function closeAvailabilityMenu() {
-  document.getElementById(MENU_ID)?.remove()
-}
-
-/** 创建并显示状态选择菜单 */
-function showAvailabilityMenu(anchor: HTMLElement) {
-  closeAvailabilityMenu()
-
-  const menu = document.createElement('div')
-  menu.id = MENU_ID
-  menu.className = 'sona-availability-menu'
-
-  for (const option of AVAILABILITY_OPTIONS) {
-    const btn = document.createElement('button')
-    btn.className = `sona-availability-option${currentAvailability === option.value ? ' sona-availability-option--active' : ''}`
-    btn.type = 'button'
-    btn.innerHTML = `
-      <span class="sona-availability-dot sona-availability-dot--${option.value}"></span>
-      <span>${option.label}</span>
-    `
-
-    btn.addEventListener('mousedown', (e) => e.stopPropagation())
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation()
-      e.stopImmediatePropagation()
-
-      // 仅记录隐身：手选隐身才强制保留，手点其他任意模式即解除强制
-      userSelectedAvailability = option.value === 'offline' ? 'offline' : null
-
-      if (option.value !== currentAvailability) {
-        currentAvailability = option.value
-
-        // 写 store 前先看当前阶段：只在空闲阶段（None/Lobby）持久化。
-        // 游戏中/选人中/结算中临时切一下不该被当成"下次启动的默认状态"，
-        // 否则会造成"玩家游戏中切了一下勿扰 → 下次启动恢复成勿扰 → 又触发缝合怪"的滚雪球。
-        // 同样不持久化 away 状态，它是客户端自动设置的（玩家一段时间不操作），
-        // 不应作为下次启动的默认状态。
-        lcu.getGameflowPhase()
-          .then((phase) => {
-            if ((phase === 'None' || phase === 'Lobby') && option.value !== 'away') {
-              store.set('availability', option.value)
-              logger.info('[Availability] 持久化: %s (phase=%s)', option.value, phase)
-            } else {
-              logger.info('[Availability] 仅临时切换（阶段 %s，不持久化）', phase)
-            }
-          })
-          .catch(() => {
-            // phase 拉不到时保守起见不写 store
-            logger.warn('[Availability] 无法获取 gameflow phase，跳过持久化')
-          })
-
-        // PUT availability 请求本身不受阶段限制——用户点了就按用户意图发
-        lcu.setAvailability(option.value)
-          .then(() => logger.info('[Availability] 已切换: %s', option.value))
-          .catch((err) => logger.error('[Availability] 切换失败:', err))
-      }
-      closeAvailabilityMenu()
-    }, true)
-
-    menu.appendChild(btn)
-  }
-
-  // 计算 fixed 定位坐标，基于 anchor 的位置
-  const rect = anchor.getBoundingClientRect()
-  menu.style.top = `${rect.bottom + 6}px`
-  menu.style.left = `${rect.left + rect.width / 2 - 6}px` // 60 ≈ min-width/2
-
-  document.body.appendChild(menu)
-
-  // 点击外部关闭
-  const onOutsideClick = (e: MouseEvent) => {
-    if (!menu.contains(e.target as Node)) {
-      closeAvailabilityMenu()
-      document.removeEventListener('mousedown', onOutsideClick, true)
-    }
-  }
-  // 延迟一帧再绑定，避免当前这次点击立刻触发关闭
-  requestAnimationFrame(() => {
-    document.addEventListener('mousedown', onOutsideClick, true)
-  })
-}
-
-/** 是否启用"解锁在线状态切换"功能（由 features.ts 的开关控制） */
-let availabilityHijackEnabled = false
-
-/** 设置开关状态（供 features.ts 调用） */
-export function setAvailabilityHijackEnabled(enabled: boolean) {
-  availabilityHijackEnabled = enabled
-  if (enabled) {
-    // 启用时：注入状态菜单接管任务。restore 由 registerAllInjections 统一负责，这里不重复。
-    injector.register(tryHijackAvailabilityHitbox)
-  } else {
-    // 禁用时：取消注入任务，并关闭可能已打开的菜单
-    injector.unregister(tryHijackAvailabilityHitbox)
-    closeAvailabilityMenu()
-  }
-}
-
-/**
- * 注入任务：接管 .lol-social-availability-hitbox 的点击事件
- * 阻止客户端原有逻辑，替换为自定义的状态选择菜单
- *
- * 注：事件监听只能绑定一次（用 HIJACKED_ATTR 保证幂等），
- *    开关关闭时通过 availabilityHijackEnabled flag 让 listener 放行客户端原逻辑。
- */
-function tryHijackAvailabilityHitbox(): boolean {
-  const hitbox = document.querySelector(`.social-identity-block .lol-social-availability-hitbox:not([${HIJACKED_ATTR}])`) as HTMLElement | null
-  if (!hitbox) return true
-
-  hitbox.setAttribute(HIJACKED_ATTR, 'true')
-
-  hitbox.addEventListener('click', (e) => {
-    // 开关未开时：放行，走客户端默认行为
-    if (!availabilityHijackEnabled) return
-
-    e.stopPropagation()
-    e.stopImmediatePropagation()
-    e.preventDefault()
-    logger.debug('Availability hitbox clicked')
-    // 已经打开则关闭，否则打开
-    if (document.getElementById(MENU_ID)) {
-      closeAvailabilityMenu()
-      logger.debug('Availability menu closed')
-    } else {
-      showAvailabilityMenu(hitbox)
-      logger.debug('Availability menu shown')
-    }
-  }, true)
-
-  logger.info('Availability hitbox hijacked ✓')
-  return true
 }
 
 // ==================== 隐藏云顶之弈入口 ====================
@@ -610,7 +443,6 @@ function tryHideRightNavText(): boolean {
  */
 export function registerAllInjections() {
   injector.register(tryInjectSonaButton)
-  // tryHijackAvailabilityHitbox 由 features.ts 的 unlockAvailability 开关按需注册
 
   // 状态同步启动顺序（重要！）：
   //   ① 先主动拉一次 ChatMe 快照做 restore：对齐 store 和客户端状态（只写不校验）

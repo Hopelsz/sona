@@ -62,12 +62,6 @@ interface SgpSummonerLite {
   name?: string
 }
 
-type GameSettingsBackup = {
-  general?: unknown
-  input?: unknown
-  timestamp: number
-}
-
 // ==================== 底层请求方法 ====================
 
 /**
@@ -112,22 +106,6 @@ function put<T = unknown>(endpoint: string, body?: unknown): Promise<T> {
     method: 'PUT',
     body: body != null ? JSON.stringify(body) : undefined,
   })
-}
-
-export interface RunePagePayload {
-  name: string
-  primaryStyleId: number
-  subStyleId: number
-  selectedPerkIds: number[]
-  current: boolean
-}
-
-export interface RunePage extends RunePagePayload {
-  id: number
-  isActive?: boolean
-  isDeletable?: boolean
-  isEditable?: boolean
-  order?: number
 }
 
 export interface ItemSetEntry {
@@ -1695,69 +1673,6 @@ class LCUManager {
     return this.updateChallengePlayerPreferences({ bannerAccent: bannerId })
   }
 
-  /** 获取玩家符文页 */
-  getRunePages(): Promise<RunePage[]> {
-    return get<RunePage[]>('/lol-perks/v1/pages')
-  }
-
-  /** 创建符文页 */
-  createRunePage(page: RunePagePayload): Promise<RunePage> {
-    return post<RunePage>('/lol-perks/v1/pages', page)
-  }
-
-  /** 更新指定符文页 */
-  updateRunePage(id: number, page: RunePagePayload): Promise<RunePage> {
-    return put<RunePage>(`/lol-perks/v1/pages/${id}`, page)
-  }
-
-  /** 删除指定符文页 */
-  deleteRunePage(id: number): Promise<void> {
-    return del<void>(`/lol-perks/v1/pages/${id}`)
-  }
-
-  /** 创建或更新 Sona 管理的符文页，并设为当前使用页 */
-  async applyRunePage(page: Omit<RunePagePayload, 'current'>): Promise<RunePage> {
-    const payload: RunePagePayload = {
-      ...page,
-      current: true,
-    }
-    const pages = await this.getRunePages()
-    const isEditable = (p: RunePage) => p.isEditable !== false
-    const isSonaManaged = (p: RunePage) => /\s-\s*Sona$/i.test(p.name)
-    const cleanupDuplicateSonaPages = async (keepId: number) => {
-      await Promise.allSettled(
-        pages
-          .filter((p) => p.id !== keepId && isSonaManaged(p) && p.isDeletable !== false)
-          .map((p) => this.deleteRunePage(p.id)),
-      )
-    }
-
-    const existing = pages.find((p) => p.name === page.name && p.isEditable !== false)
-    if (existing) {
-      const updated = await this.updateRunePage(existing.id, payload)
-      await cleanupDuplicateSonaPages(existing.id)
-      return updated
-    }
-
-    const managed = pages.find((p) => isSonaManaged(p) && isEditable(p))
-    if (managed) {
-      const updated = await this.updateRunePage(managed.id, payload)
-      await cleanupDuplicateSonaPages(managed.id)
-      return updated
-    }
-
-    try {
-      return await this.createRunePage(payload)
-    } catch (err) {
-      const fallback = pages.find((p) => p.current && p.isEditable !== false) ?? pages.find((p) => p.isEditable !== false)
-      if (fallback) {
-        return this.updateRunePage(fallback.id, payload)
-      }
-      throw err
-    }
-  }
-
-
   // ==================== 通知 ====================
 
 
@@ -1779,26 +1694,6 @@ class LCUManager {
     })
   }
 
-  // ==================== 客户端设置备份/恢复 ====================
-
-  private async getPuuid(): Promise<string> {
-    const session = await get<{ puuid: string }>('/lol-login/v1/session')
-    if (!session.puuid) throw new Error('未获取到 PUUID')
-    return session.puuid
-  }
-
-  private loadAllBackups(puuid: string): Record<string, GameSettingsBackup> {
-    const allBackups = store.get('gameSettingsBackups')
-    return allBackups[puuid] ?? {}
-  }
-
-  private saveAllBackups(puuid: string, data: Record<string, GameSettingsBackup>) {
-    store.set('gameSettingsBackups', {
-      ...store.get('gameSettingsBackups'),
-      [puuid]: data,
-    })
-  }
-
   /** 获取常规游戏设置（画质、声音、HUD 等，对应 game.cfg） */
   getGameSettings(): Promise<unknown> {
     return get('/lol-game-settings/v1/game-settings')
@@ -1807,87 +1702,6 @@ class LCUManager {
   /** 获取热键设置（对应 PersistedSettings.json 的热键部分） */
   getInputSettings(): Promise<unknown> {
     return get('/lol-game-settings/v1/input-settings')
-  }
-
-  /**
-   * 创建命名备份（同时拉取常规设置 + 热键设置）
-   * @param name 用户自定义的备份名称
-   */
-  async backupSettings(name: string): Promise<boolean> {
-    try {
-      const puuid = await this.getPuuid()
-      const [general, input] = await Promise.all([
-        this.getGameSettings(),
-        this.getInputSettings(),
-      ])
-      const all = this.loadAllBackups(puuid)
-      all[name] = { general, input, timestamp: Date.now() }
-      this.saveAllBackups(puuid, all)
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  /**
-   * 恢复指定名称的备份并写入磁盘
-   * @param name 备份名称
-   */
-  async restoreSettings(name: string): Promise<boolean> {
-    try {
-      const puuid = await this.getPuuid()
-      const all = this.loadAllBackups(puuid)
-      const backup = all[name]
-      if (!backup) throw new Error(`备份 "${name}" 不存在`)
-
-      // 第 1 步：恢复常规设置 (game-settings)
-      if (backup.general) {
-        await patch('/lol-game-settings/v1/game-settings', backup.general)
-      }
-
-      // 第 2 步：恢复热键设置 (input-settings)
-      if (backup.input) {
-        await patch('/lol-game-settings/v1/input-settings', backup.input)
-      }
-
-      // 第 3 步：强制写入磁盘
-      await post('/lol-game-settings/v1/save')
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  /**
-   * 删除指定名称的备份
-   * @param name 备份名称
-   */
-  async deleteBackup(name: string): Promise<boolean> {
-    try {
-      const puuid = await this.getPuuid()
-      const all = this.loadAllBackups(puuid)
-      if (!(name in all)) return false
-      delete all[name]
-      this.saveAllBackups(puuid, all)
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  /**
-   * 获取所有备份列表（按时间倒序）
-   */
-  async listBackups(): Promise<{ name: string; timestamp: number }[]> {
-    try {
-      const puuid = await this.getPuuid()
-      const all = this.loadAllBackups(puuid)
-      return Object.entries(all)
-        .map(([name, data]) => ({ name, timestamp: data.timestamp ?? 0 }))
-        .sort((a, b) => b.timestamp - a.timestamp)
-    } catch {
-      return []
-    }
   }
 
   // ==================== WebSocket 事件 ====================

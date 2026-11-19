@@ -9,7 +9,6 @@ import { store } from '@/lib/store'
 import { lcu, SGP_SERVERS } from '@/lib/lcu'
 import { aramggApi } from '@/lib/aramgg-api'
 import { searchChampions, type ChampionInfo, getChampionBalanceMeta, getAllChampionBalances } from '@/lib/assets'
-import { openOpggBuildRecommendationDebugPanel } from '@/lib/features/opgg-build-recommendation'
 import { opggApi } from '@/lib/opgg-api'
 import { getPluginAssetsFolderPath, resolvePluginAssetUrl } from '@/lib/plugin-resolver'
 import { uploadImageToHostingServiceForDebug } from '@/lib/image-hosting-service'
@@ -45,7 +44,6 @@ export function DebugPage() {
     size: number
   } | null>(null)
   const champRef = useRef<HTMLDivElement>(null)
-  const opggPanelButtonRef = useRef<HTMLDivElement>(null)
   const beautifyImageInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -1008,40 +1006,6 @@ export function DebugPage() {
           <SonaButton onClick={() => runAndLog('ARAMGG 海克斯中文信息', fetchAramggMayhemAugmentsZhCn)}>
             ARAMGG 海克斯中文
           </SonaButton>
-          <div ref={opggPanelButtonRef} style={{ display: 'inline-block' }}>
-            <SonaButton onClick={async () => {
-              const anchor = opggPanelButtonRef.current
-              if (!anchor) return
-
-              try {
-                const id = await getOpggDebugChampionId()
-                await openOpggBuildRecommendationDebugPanel(anchor, id)
-                setOutput(`✅ 已拉起 OP.GG 配装推荐面板\nchampionId=${id} · KIWI · queueId=3100`)
-              } catch (err) {
-                setOutput(`❌ 拉起 OP.GG 配装推荐面板失败\n${err instanceof Error ? err.message : String(err)}`)
-              }
-            }}>
-              拉起配装推荐面板
-            </SonaButton>
-          </div>
-          <SonaButton onClick={async () => {
-            const anchor = opggPanelButtonRef.current
-            if (!anchor) return
-
-            try {
-              const id = await getOpggDebugChampionId()
-              await openOpggBuildRecommendationDebugPanel(anchor, id, {
-                queueId: 420,
-                gameMode: 'CLASSIC',
-                position: 'mid',
-              })
-              setOutput(`✅ 已拉起 OP.GG 配装推荐面板\nchampionId=${id} · ranked/mid · queueId=420`)
-            } catch (err) {
-              setOutput(`❌ 拉起 ranked 配装推荐面板失败\n${err instanceof Error ? err.message : String(err)}`)
-            }
-          }}>
-            拉起 ranked 面板
-          </SonaButton>
         </div>
         <p className="sona-subtitle">{t('debug.hint.opggChampion')}</p>
       </SettingGroup>
@@ -1175,55 +1139,6 @@ export function DebugPage() {
           </SonaButton>
           <SonaButton onClick={() => runAndLog('地图资源 (maps.json)', () => lcu.getMapAssets())}>
             地图资源
-          </SonaButton>
-        </div>
-      </SettingGroup>
-
-      <SettingGroup title={t('debug.group.replay')}>
-        <div className="sona-debug-actions" style={{ alignItems: 'flex-end', gap: 8 }}>
-          <div style={{ flex: 1 }}>
-            <SonaInput
-              value={gameId}
-              onChange={setGameId}
-              placeholder={t('debug.placeholder.gameId')}
-            />
-          </div>
-          <SonaButton onClick={() => {
-            const id = Number(gameId)
-            if (!id) { setOutput('❌ 请输入 Game ID'); return }
-            runAndLog(`回放元数据 #${id}`, async () => {
-              const res = await fetch(`/lol-replays/v1/metadata/${id}`); return res.ok ? res.json() : `❌ ${res.status} ${await res.text()}`
-            })
-          }}>
-            查状态
-          </SonaButton>
-          <SonaButton onClick={() => {
-            const id = Number(gameId)
-            if (!id) { setOutput('❌ 请输入 Game ID'); return }
-            runAndLog(`直接观看 #${id} (不下载)`, async () => {
-              const res = await fetch(`/lol-replays/v1/rofls/${id}/watch`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ componentType: 'replay', contextData: 'match-history' }),
-              })
-              return res.ok ? '✅ 已发送观看请求' : `❌ ${res.status} ${await res.text()}`
-            })
-          }}>
-            {t('debug.action.watchDirectly')}
-          </SonaButton>
-          <SonaButton variant="secondary" onClick={() => {
-            const id = Number(gameId)
-            if (!id) { setOutput('❌ 请输入 Game ID'); return }
-            runAndLog(`下载回放 #${id}`, async () => {
-              const res = await fetch(`/lol-replays/v1/rofls/${id}/download`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ componentType: 'replay', contextData: 'match-history' }),
-              })
-              return res.ok ? '✅ 已发送下载请求' : `❌ ${res.status} ${await res.text()}`
-            })
-          }}>
-            {t('debug.action.download')}
           </SonaButton>
         </div>
       </SettingGroup>

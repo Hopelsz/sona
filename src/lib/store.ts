@@ -33,10 +33,6 @@ export interface SonaConfig {
   autoAcceptDelayMax: number
   /** 开发者模式 */
   developerMode: boolean
-  /** 解锁自定义签名 */
-  unlockStatus: boolean
-  /** 解锁在线状态切换（接管客户端状态按钮，支持"隐身/手机在线"等） */
-  unlockAvailability: boolean
   /** 大乱斗无CD换英雄 */
   benchNoCooldown: boolean
   /** 侧边栏收缩状态 */
@@ -53,41 +49,12 @@ export interface SonaConfig {
   skippedUpdateVersion: string | null
   /** 窗口视觉特效 */
   windowEffect: string
-  /** 英雄选择玩家头像交互（点击队友头像展示历史数据） */
-  champSelectAssist: boolean
-  /** OP.GG 配装推荐（接管选好英雄后的技能预览面板点击） */
-  opggBuildRecommendation: boolean
-  /** 智能配装（后续扩展符文、召唤师技能持久化） */
-  smartBuildRecommendation: boolean
-  /** 智能符文：按英雄与模式保存的用户符文页 */
-  smartRunePages: Record<string, {
-    primaryStyleId: number
-    subStyleId: number
-    selectedPerkIds: number[]
-    updatedAt: number
-  }>
-  /** 智能召唤师技能：按英雄与模式保存的技能组合 */
-  smartSummonerSpells: Record<string, {
-    spell1Id: number
-    spell2Id: number
-    updatedAt: number
-  }>
-  /** 游戏设置备份：按 puuid 保存多个命名备份 */
-  gameSettingsBackups: Record<string, Record<string, {
-    general?: unknown
-    input?: unknown
-    timestamp: number
-  }>>
-  /** OP.GG 配装推荐段位过滤 */
-  opggBuildRecommendationTier: string
   /** 分析友方战力（进入选人自动查战绩并发送到聊天框） */
   analyzeTeamPower: boolean
   /** 分析友方战力消息类型: chat=队友可见, celebration=仅自己可见 */
   analyzeTeamPowerMsgType: string
   /** 战绩查询局数（20/50/100），默认50 */
   analyzeTeamPowerFetchCount: number
-  /** 英雄选择增强查询局数（20/50/100），默认50 */
-  champSelectAssistFetchCount: number
   /** 全局战力分析查询局数（20/50/100），默认50 */
   gameAnalysisFetchCount: number
   /** 选人阶段红蓝方提示（进入英雄选择时在聊天框提示当前阵营） */
@@ -143,12 +110,6 @@ export interface SonaConfig {
   customAvatarRemoteCache: Record<string, string>
   /** 好友智能分组（开黑好友用同样颜色的border-right展示） */
   friendSmartGroup: boolean
-  /** 增强游戏中好友状态（显示模式、英雄和实时对局时长） */
-  enhancedFriendGameStatus: boolean
-  /** 组队界面增强（点击成员头像查看战绩，并显示近期表现） */
-  lobbyEnhancement: boolean
-  /** 组队界面增强查询局数（20/50/100），默认50 */
-  lobbyEnhancementFetchCount: number
   /** 自定义生涯背景 */
   customProfileBg: boolean
   /** 无视他人生涯隐私（XHR 响应改写，需重启生效） */
@@ -173,8 +134,6 @@ export interface SonaConfig {
   hideRightNavText: boolean
   /** 关闭右下角赛事直播弹窗（iframe#tv-official-pop，检测到即移除） */
   hideEsportsPopup: boolean
-  /** 对局结束自动点赞 */
-  autoHonor: boolean
   /** 段位伪装开关 */
   rankDisguise: boolean
   /** 伪装队列 */
@@ -193,10 +152,6 @@ export interface SonaConfig {
   autoBanChampion: boolean
   /** 自动禁用目标英雄优先级队列 */
   autoBanChampionIds: number[]
-  /** 平衡性调整 buff 提示（游玩特定模式时悬停头像显示数值调整） */
-  balanceBuffTooltip: boolean
-  /** 国服解锁炫彩分页（生涯藏品页显示"炫彩"tab，需重启客户端） */
-  unlockChromas: boolean
   /** 选人阶段退出按钮（非自定义对局的英雄选择里补上"退出对局"按钮） */
   champSelectQuitButton: boolean
   /** 进入游戏后自动弹窗显示全局战力分析 */
@@ -220,8 +175,6 @@ const DEFAULT_CONFIG: SonaConfig = {
   autoAcceptDelayMin: 0,
   autoAcceptDelayMax: 0,
   developerMode: false,
-  unlockStatus: true,
-  unlockAvailability: false,
   benchNoCooldown: false,
   sidebarCollapsed: false,
   availability: 'chat',
@@ -230,17 +183,9 @@ const DEFAULT_CONFIG: SonaConfig = {
   locale: 'auto',
   skippedUpdateVersion: null,
   windowEffect: 'none',
-  champSelectAssist: false,
-  opggBuildRecommendation: false,
-  smartBuildRecommendation: true,
-  smartRunePages: {},
-  smartSummonerSpells: {},
-  gameSettingsBackups: {},
-  opggBuildRecommendationTier: 'emerald_plus',
   analyzeTeamPower: false,
   analyzeTeamPowerMsgType: 'celebration',
   analyzeTeamPowerFetchCount: 50,
-  champSelectAssistFetchCount: 50,
   gameAnalysisFetchCount: 50,
   sideIndicator: false,
   sideIndicatorMsgType: 'celebration',
@@ -269,9 +214,6 @@ const DEFAULT_CONFIG: SonaConfig = {
   customAvatarAssetPaths: [],
   customAvatarRemoteCache: {},
   friendSmartGroup: false,
-  enhancedFriendGameStatus: true,
-  lobbyEnhancement: true,
-  lobbyEnhancementFetchCount: 50,
   hideTFT: false,
   gameModeFilter: true,
   hiddenGameModes: {},
@@ -281,7 +223,6 @@ const DEFAULT_CONFIG: SonaConfig = {
   ignoreProfilePrivacy: true,
   customBanner: false,
   customBannerSelection: null,
-  autoHonor: false,
   rankDisguise: false,
   rankQueue: 'RANKED_SOLO_5x5',
   rankTier: 'CHALLENGER',
@@ -291,8 +232,6 @@ const DEFAULT_CONFIG: SonaConfig = {
   autoLockInstant: true,
   autoBanChampion: false,
   autoBanChampionIds: [],
-  balanceBuffTooltip: false,
-  unlockChromas: true,
   champSelectQuitButton: false,
   gameAnalysisPopup: false,
   autoReturnToLobby: false,
